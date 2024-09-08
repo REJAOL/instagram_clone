@@ -2,6 +2,7 @@ import sharp from "sharp"
 import cloudinary from "../utils/cloudinary.js"
 import { Post } from "../models/post.model.js"
 import { User } from "../models/user.model.js"
+import { Comment } from "../models/comment.model.js"
 
 
 
@@ -48,7 +49,7 @@ export const addNewPost = async (req, res) => {
     }
 }
 
-export const posts = async (req, res) => {
+export const getAllPosts = async (req, res) => {
     try {
         const posts = await Post.find().sort({ createdAt: -1 })
             .populate({ path: 'author', select: 'username profilePicture' })
@@ -60,38 +61,132 @@ export const posts = async (req, res) => {
             })
         return res.status(200).json({
             posts,
-            success:true
+            success: true
         })
     } catch (error) {
         console.log(error)
     }
 }
 
-export const getUserPost = async(req,res)=>{
+export const getUserPost = async (req, res) => {
     try {
         const authorId = req.id
         const posts = await Post.find({
-            author:authorId
+            author: authorId
         }).sort({
-            createdAt:-1
+            createdAt: -1
         }).populate({
-            path:'author',
-            select:"username, profilePicture"
+            path: 'author',
+            select: "username, profilePicture"
         }).populate({
-            path:'comments',
-            sort:{
-                createdAt:-1
+            path: 'comments',
+            sort: {
+                createdAt: -1
             },
-            populate:{
-                path:'author',
-                select:'username, profilePicture'
+            populate: {
+                path: 'author',
+                select: 'username, profilePicture'
             }
         })
         return res.status(200).json({
             posts,
-            success:true
+            success: true
         })
     } catch (error) {
         console.log(error)
     }
 }
+
+export const likePost = async (req, res) => {
+    try {
+
+        const likedBy = req.id
+        const postId = req.params.id
+        const post = await Post.findById(postId)
+
+        if (!post) return res.status(404).json({
+            message: "Post not found",
+            success: false
+        })
+
+        await post.updateOne({
+            $addToSet: {
+                likes: likedBy
+            }
+        })
+        await post.save()
+
+        return response.status(200).json({
+            message: 'post liked',
+            success: true
+        })
+
+    } catch (error) {
+        console.log(error)
+    }
+}
+export const disLikePost = async (req, res) => {
+    try {
+
+        const likedBy = req.id
+        const postId = req.params.id
+        const post = await Post.findById(postId)
+
+        if (!post) return res.status(404).json({
+            message: "Post not found",
+            success: false
+        })
+
+        await post.updateOne({
+            $pull: {
+                likes: likedBy
+            }
+        })
+        await post.save()
+
+        return response.status(200).json({
+            message: 'post disliked',
+            success: true
+        })
+
+    } catch (error) {
+        console.log(error)
+    }
+}
+
+export const addComment = async (req, res) => {
+    try {
+        const postId = req.params.id
+        const post = await Post.findById(postId)
+
+        const commentedBy = req.id
+
+        const { text } = req.body
+
+        if (!text) return res.status(404).json({
+            message: "text is required",
+            success: false
+        })
+
+        const comment = await Comment.create({
+            text,
+            author: commentedBy,
+            post: postId
+        }).populate({
+            path: 'author',
+            select: "username, profilePicture"
+        })
+
+        post.comments.push(comment._id)
+        await Post.save()
+
+        return res.status(200).json({
+            message: "comment added",
+            comment,
+            success: true
+        })
+    } catch (error) {
+        console.log(error)
+    }
+}
+
